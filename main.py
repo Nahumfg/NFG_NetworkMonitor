@@ -1,22 +1,24 @@
 # main.py
 import sys
 import csv
+import os
 import psutil
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as Canvas
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-    QListWidget, QLabel, QMessageBox, QFileDialog
+    QListWidget, QLabel, QMessageBox, QFileDialog, QTableWidget, QTableWidgetItem
 )
-from PyQt6.QtCore import QTimer
+from PyQt6.QtWidgets import QHeaderView
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QIcon
 from matplotlib.ticker import FuncFormatter
 
 class NetworkMonitor(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("NFG Network Monitor")
-        self.setFixedSize(1000, 700)
+        self.setWindowTitle("NFG Network Monitor v2.0")
+        self.setFixedSize(1000, 750)
         self.setFont(QFont("Segoe UI", 10))
         self.setWindowIcon(QIcon("icono_nfg.ico"))  # Asegúrate de tener el ícono en la carpeta
 
@@ -29,10 +31,29 @@ class NetworkMonitor(QWidget):
 
         # Lista de procesos con conexión activa
         self.label_lista = QLabel("🔍 Procesos con conexión a Internet:")
-        self.list_widget = QListWidget()
+        
+        #Vista Enriquecida
+        self.table_procesos = QTableWidget()
+        self.table_procesos.setColumnCount(5)
+        self.table_procesos.setHorizontalHeaderLabels(["PID", "Nombre", "Local", "Remoto", "Estado"])
+        self.table_procesos.setAlternatingRowColors(True)
+        self.table_procesos.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table_procesos.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.table_procesos.setStyleSheet("QHeaderView::section { font-weight: bold; }")
+        
+        
         self.layout.addWidget(self.label_lista)
-        self.layout.addWidget(self.list_widget)
-
+        self.layout.addWidget(self.table_procesos)
+        self.table_procesos.setMinimumHeight(100)
+        
+        #Boton de ayuda
+        self.btn_about = QPushButton("ℹ️ Acerca de")
+        self.btn_about.setFixedWidth(140)
+        self.btn_about.setStyleSheet("margin-top: 10px;")
+        self.layout.addWidget(self.btn_about)
+        
+        self.btn_about.clicked.connect(self.mostrar_info_autor)
+        
         # Detalles del proceso seleccionado
         self.process_info = QLabel("Selecciona un proceso para ver detalles.")
         self.layout.addWidget(self.process_info)
@@ -61,7 +82,8 @@ class NetworkMonitor(QWidget):
         self.btn_kill.clicked.connect(lambda: self.control_process("kill"))
         self.btn_export.clicked.connect(self.export_csv)
 
-        self.list_widget.currentItemChanged.connect(self.update_process_info)
+        #self.list_widget.currentItemChanged.connect(self.update_process_info)
+        self.table_procesos.itemSelectionChanged.connect(self.update_process_info)
 
         # Temporizadores
         self.timer_graph = QTimer()
@@ -69,10 +91,10 @@ class NetworkMonitor(QWidget):
         self.timer_graph.start(1000)
 
         self.timer_proc = QTimer()
-        self.timer_proc.timeout.connect(self.update_process_list)
+        self.timer_proc.timeout.connect(self.actualizar_lista_procesos)
         self.timer_proc.start(5000)
 
-        self.update_process_list()
+        self.actualizar_lista_procesos()
         
         self.label_top = QLabel("Proceso con más conexiones activas: ---")
         self.layout.addWidget(self.label_top)
@@ -110,7 +132,72 @@ class NetworkMonitor(QWidget):
         self.download_data = []
         self.prev_sent = psutil.net_io_counters().bytes_sent
         self.prev_recv = psutil.net_io_counters().bytes_recv
-
+        
+        self.version_label = QLabel("🔖 NFG Network Monitor v2.0 - por Nahum Flores Gómez")
+        self.version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.version_label.setStyleSheet("color: gray; font-style: italic; margin-top: 8px;")
+        self.layout.addWidget(self.version_label)
+        
+        #boton trafico oscuro
+        self.btn_netstat = QPushButton("🔎 Ver conexiones activas (netstat)")
+        self.layout.addWidget(self.btn_netstat)
+        self.btn_netstat.clicked.connect(self.ver_conexiones_netstat)
+        
+        self.toggle_netstat_mode = QPushButton("🧠 Modo netstat OFF")
+        self.toggle_netstat_mode.setCheckable(True)
+        self.layout.addWidget(self.toggle_netstat_mode)
+        
+        self.toggle_netstat_mode.clicked.connect(self.toggle_modo_netstat)
+        self.netstat_mode = False  # Estado inicial
+        
+        self.table_procesos.horizontalHeader().setStretchLastSection(True)
+        self.table_procesos.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        #self.layout.addWidget(self.table_procesos, stretch=3)
+        #self.layout.addWidget(self.canvas, stretch=2)
+    
+    def mostrar_info_autor(self):
+        QMessageBox.information(
+            self,
+            "Acerca de NFG Monitor",
+            (
+                "📡 NFG Network Monitor v2.0\n"
+                "Desarrollado con cariño por Nahum Flores\n\n"
+                "🚗 Ingeniería • 🧪 Python • ⚙️ Creatividad\n\n"
+                "¿Te resultó útil? Puedes apoyarme con una donación 🫶\n"
+                "📬 PayPal: paypal.me/Nahumfg \n"
+            )
+        )
+    
+    def toggle_modo_netstat(self):
+        self.netstat_mode = self.toggle_netstat_mode.isChecked()
+    
+        if self.netstat_mode:
+            self.toggle_netstat_mode.setText("🧠 Modo netstat ON")
+            self.actualizar_vista_netstat()
+        else:
+            self.toggle_netstat_mode.setText("🧠 Modo netstat OFF")
+            self.actualizar_lista_procesos()
+    
+    def actualizar_lista_procesos(self):
+        self.table_procesos.setRowCount(0)
+        for proc in psutil.process_iter(['pid', 'name']):
+            try:
+                conns = proc.net_connections(kind='inet')
+                for conn in conns:
+                    laddr = f"{conn.laddr.ip}:{conn.laddr.port}" if conn.laddr else "-"
+                    raddr = f"{conn.raddr.ip}:{conn.raddr.port}" if conn.raddr else "-"
+                    fila = self.table_procesos.rowCount()
+                    self.table_procesos.insertRow(fila)
+                    for i, valor in enumerate([
+                        str(proc.info['pid']),
+                        proc.info['name'],
+                        laddr,
+                        raddr,
+                        conn.status
+                    ]):
+                        self.table_procesos.setItem(fila, i, QTableWidgetItem(valor))
+            except Exception:
+                pass
     
     def update_countdown(self):
         if self.countdown > 0:
@@ -135,7 +222,7 @@ class NetworkMonitor(QWidget):
     
         for proc in psutil.process_iter(['pid', 'name']):
             try:
-                conns = proc.connections(kind='inet')
+                conns = proc.net_connections(kind='inet')
                 if conns and len(conns) > max_conns:
                     max_conns = len(conns)
                     top_pid = proc.pid
@@ -148,14 +235,7 @@ class NetworkMonitor(QWidget):
         else:
             self.label_top.setText("No hay actividad significativa detectada.")
     
-    def update_process_list(self):
-        self.list_widget.clear()
-        for proc in psutil.process_iter(['pid', 'name']):
-            try:
-                if proc.connections(kind='inet'):
-                    self.list_widget.addItem(f"{proc.info['pid']} - {proc.info['name']}")
-            except (psutil.AccessDenied, psutil.NoSuchProcess):
-                continue
+    
     
     def cancelar_reanudacion(self):
         self.countdown_timer.stop()
@@ -164,6 +244,9 @@ class NetworkMonitor(QWidget):
         self.current_pid_paused = None
     
     def update_graph(self):
+        if self.netstat_mode:
+            self.actualizar_vista_netstat()
+            return
         counters = psutil.net_io_counters()
         up = counters.bytes_sent - self.prev_sent
         down = counters.bytes_recv - self.prev_recv
@@ -176,7 +259,7 @@ class NetworkMonitor(QWidget):
             self.upload_data.pop(0)
             self.download_data.pop(0)
     
-        self.save_to_csv(up + down)
+        self.save_to_csv(up, down)
     
         # Escalar colores por tráfico
         color_down = "lime" if down < 100_000 else "gold" if down < 500_000 else "red"
@@ -218,14 +301,38 @@ class NetworkMonitor(QWidget):
         return f"{num:.1f} TB/s"
     
     def update_process_info(self):
-        item = self.list_widget.currentItem()
-        if item:
-            pid = int(item.text().split(" - ")[0])
-            try:
-                proc = psutil.Process(pid)
-                self.process_info.setText(f"🧠 {proc.name()} | PID: {pid} | Estado: {proc.status()}")
-            except Exception:
-                self.process_info.setText("Error al obtener información del proceso.")
+        fila = self.table_procesos.currentRow()
+        if fila == -1:
+            return
+    
+        try:
+            pid_item = self.table_procesos.item(fila, 0)  # Columna PID
+            nombre_item = self.table_procesos.item(fila, 1)  # Nombre del proceso
+    
+            if not pid_item or not nombre_item:
+                return
+    
+            pid = int(pid_item.text())
+            nombre = nombre_item.text()
+    
+            proc = psutil.Process(pid)
+            ruta = proc.exe()
+            uso_cpu = proc.cpu_percent(interval=0.1)
+            memoria = round(proc.memory_info().rss / (1024 * 1024), 2)
+    
+            detalles = (
+                f"🔍 Proceso seleccionado:\n"
+                f"PID: {pid}\n"
+                f"Nombre: {nombre}\n"
+                f"Ruta: {ruta}\n"
+                f"CPU: {uso_cpu}%\n"
+                f"Memoria: {memoria} MB"
+            )
+    
+            print(detalles)  # O muestra en un QMessageBox si prefieres
+    
+        except Exception as e:
+            print(f"Error al obtener info del proceso: {e}")
     
     def control_process(self, action):
         item = self.list_widget.currentItem()
@@ -250,7 +357,7 @@ class NetworkMonitor(QWidget):
             elif action == "kill":
                 proc.terminate()
                 QMessageBox.information(self, "Éxito", f"Proceso {pid} finalizado.")
-                self.update_process_list()
+                self.actualizar_lista_procesos()
         except Exception as e:
             QMessageBox.warning(self, "Error", str(e))
     
@@ -263,13 +370,21 @@ class NetworkMonitor(QWidget):
         except Exception:
             pass  # el proceso pudo haber terminado entre pausado y reanudado
     
-    def save_to_csv(self, delta_bytes):
+    def save_to_csv(self, up, down):
+        from datetime import datetime
+        ruta = "logs/historial.csv"
+        encabezado = ["timestamp", "download", "upload", "total"]
+    
         try:
-            with open(self.log_path, 'a', newline='') as f:
+            nuevo = not os.path.isfile(ruta)
+            with open(ruta, "a", newline="") as f:
                 writer = csv.writer(f)
-                writer.writerow([psutil.boot_time(), delta_bytes])
-        except Exception:
-            pass
+                if nuevo:
+                    writer.writerow(encabezado)
+                ahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                writer.writerow([ahora, down, up, up + down])
+        except Exception as e:
+            print(f"Error guardando CSV: {e}")
 
     def export_csv(self):
         path, _ = QFileDialog.getSaveFileName(self, "Guardar historial como...", "historial.csv", "CSV Files (*.csv)")
@@ -287,6 +402,47 @@ class NetworkMonitor(QWidget):
                 return f"{num:.1f} {unit}"
             num /= 1024
         return f"{num:.1f} TB/s"
+        
+    def ver_conexiones_netstat(self):
+        self.list_widget.clear()
+        conexiones = psutil.net_connections(kind='inet')
+    
+        for c in conexiones:
+            pid = c.pid if c.pid is not None else 0
+            laddr = f"{c.laddr.ip}:{c.laddr.port}" if c.laddr else "-"
+            raddr = f"{c.raddr.ip}:{c.raddr.port}" if c.raddr else "-"
+            estado = c.status
+    
+            try:
+                proc = psutil.Process(pid) if pid else None
+                nombre = proc.name() if proc else "System/Idle"
+            except Exception:
+                nombre = "Desconocido"
+    
+            texto = f"PID {pid:<6} | {nombre:<20} | {laddr:<22} → {raddr:<22} | {estado}"
+            self.table_procesos.insertRow(texto)
+            
+    def actualizar_vista_netstat(self):
+        self.table_procesos.setRowCount(0)
+        conexiones = psutil.net_connections(kind='inet')
+    
+        for conn in conexiones:
+            pid = conn.pid if conn.pid else 0
+            laddr = f"{conn.laddr.ip}:{conn.laddr.port}" if conn.laddr else "-"
+            raddr = f"{conn.raddr.ip}:{conn.raddr.port}" if conn.raddr else "-"
+            estado = conn.status
+    
+            try:
+                proc = psutil.Process(pid) if pid else None
+                nombre = proc.name() if proc else "System/Idle"
+            except Exception:
+                nombre = "Desconocido"
+    
+            fila = self.table_procesos.rowCount()
+            self.table_procesos.insertRow(fila)
+            for i, valor in enumerate([str(pid), nombre, laddr, raddr, estado]):
+                item = QTableWidgetItem(valor)
+                self.table_procesos.setItem(fila, i, item)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
