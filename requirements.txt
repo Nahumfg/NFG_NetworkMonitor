@@ -1,3 +1,8 @@
-PyQt6>=6.4
-matplotlib>=3.5
-psutil>=5.9
+# Requisitos principales para NFG Network Monitor
+
+PyQt6>=6.4            # Interfaz gráfica
+matplotlib>=3.5       # Gráfica en tiempo real de tráfico
+psutil>=5.9           # Acceso a procesos y conexiones del sistema
+
+# Requisitos opcionales para empaquetado y captura avanzada
+pyinstaller>=5.13     # Crear archivo .exe standalone (solo para desarrollo)
