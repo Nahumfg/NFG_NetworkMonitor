@@ -174,6 +174,7 @@ class NetworkMonitor(QWidget):
         if self.netstat_mode:
             self.toggle_netstat_mode.setText("🧠 Modo netstat ON")
             self.actualizar_vista_netstat()
+            self.table_procesos.resizeRowsToContents()
         else:
             self.toggle_netstat_mode.setText("🧠 Modo netstat OFF")
             self.actualizar_lista_procesos()
@@ -246,6 +247,7 @@ class NetworkMonitor(QWidget):
     def update_graph(self):
         if self.netstat_mode:
             self.actualizar_vista_netstat()
+            self.table_procesos.resizeRowsToContents()
             return
         counters = psutil.net_io_counters()
         up = counters.bytes_sent - self.prev_sent
@@ -404,7 +406,7 @@ class NetworkMonitor(QWidget):
         return f"{num:.1f} TB/s"
         
     def ver_conexiones_netstat(self):
-        self.list_widget.clear()
+        self.table_procesos.setRowCount(0)
         conexiones = psutil.net_connections(kind='inet')
     
         for c in conexiones:
@@ -419,8 +421,14 @@ class NetworkMonitor(QWidget):
             except Exception:
                 nombre = "Desconocido"
     
-            texto = f"PID {pid:<6} | {nombre:<20} | {laddr:<22} → {raddr:<22} | {estado}"
-            self.table_procesos.insertRow(texto)
+            fila = self.table_procesos.rowCount()
+            self.table_procesos.insertRow(fila)
+            
+            self.table_procesos.setItem(fila, 0, QTableWidgetItem(str(pid)))
+            self.table_procesos.setItem(fila, 1, QTableWidgetItem(nombre))
+            self.table_procesos.setItem(fila, 2, QTableWidgetItem(laddr))
+            self.table_procesos.setItem(fila, 3, QTableWidgetItem(raddr))
+            self.table_procesos.setItem(fila, 4, QTableWidgetItem(estado))
             
     def actualizar_vista_netstat(self):
         self.table_procesos.setRowCount(0)
