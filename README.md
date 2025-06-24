@@ -1,23 +1,27 @@
 # 📡 NFG Network Monitor
 
 **NFG Network Monitor** es una herramienta visual desarrollada en Python + PyQt6 para monitorear el tráfico de red en tiempo real, identificar procesos activos y controlar su ejecución de forma segura.
-Monitor de uso de Red de los procesos
 
 ---
 
 ## 🧩 Características
 
-- 🧠 Detecta procesos con conexiones a internet.
-- 📊 Muestra uso de red en tiempo real con subida/descarga y colores dinámicos.
+- 🧠 Detecta procesos con conexiones activas a Internet.
+- 📊 Muestra uso de red en tiempo real: subida y descarga con colores dinámicos.
 - 🔧 Permite pausar, reanudar o finalizar procesos específicos.
-- ⏱ Reanudación automática configurable con temporizador visual.
-- 📁 Exporta historial de tráfico a CSV.
-- 🖥️ Interfaz clara y moderna, con ícono personalizado **NFG**.
+- ⏱ Temporizador visual para reanudar automáticamente procesos pausados.
+- ❌ Cancelación de reanudación automática con un clic.
+- ⚙️ Duración de pausa configurable desde la interfaz.
+- 📁 Exporta historial de tráfico a archivos CSV.
+- 🖥️ Interfaz moderna y clara, con ícono personalizado **NFG**.
 
 ---
 
-## 🚀 Uso rápido
+## 🚀 Instalación y ejecución
 
-1. Ejecuta `main.py`:
+1. Clona o descarga el repositorio.
+
+2. Instala las dependencias:
+
    ```bash
-   python main.py
+   pip install -r requirements.txt
